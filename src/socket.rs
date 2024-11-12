@@ -59,8 +59,8 @@ impl std::ops::Deref for UdxSocket {
 }
 
 impl UdxSocket {
-    pub async fn bind<A: ToSocketAddrs>(addr: A) -> io::Result<Self> {
-        let inner = UdxSocketInner::bind(addr).await?;
+    pub fn bind<A: ToSocketAddrs>(addr: A) -> io::Result<Self> {
+        let inner = UdxSocketInner::bind(addr)?;
         let socket = Self(Arc::new(Mutex::new(inner)));
         let driver = SocketDriver(socket.clone());
         tokio::spawn(async {
@@ -236,7 +236,7 @@ impl SocketStats {
 }
 
 impl UdxSocketInner {
-    pub async fn bind<A: ToSocketAddrs>(addr: A) -> io::Result<Self> {
+    pub fn bind<A: ToSocketAddrs>(addr: A) -> io::Result<Self> {
         let socket = std::net::UdpSocket::bind(addr)?;
         let socket = UdpSocket::from_std(socket)?;
         let (send_tx, send_rx) = mpsc::unbounded_channel();
