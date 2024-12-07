@@ -457,15 +457,15 @@ pub enum SocketEvent {
 // Create an array of IO vectors from a buffer.
 // Safety: buf has to be longer than N. You may only read from slices that have been written to.
 // Taken from: quinn/src/endpoint.rs
-unsafe fn iovectors_from_buf<'a, const N: usize>(buf: &'a mut [u8]) -> [IoSliceMut; N] {
-    let mut iovs = MaybeUninit::<[IoSliceMut<'a>; N]>::uninit();
+unsafe fn iovectors_from_buf<const N: usize>(buf: &mut [u8]) -> [IoSliceMut; N] {
+    let mut iovs = MaybeUninit::<[IoSliceMut; N]>::uninit();
     buf.chunks_mut(buf.len() / N)
         .enumerate()
         .for_each(|(i, buf)| {
             iovs.as_mut_ptr()
                 .cast::<IoSliceMut>()
                 .add(i)
-                .write(IoSliceMut::<'a>::new(buf));
+                .write(IoSliceMut::new(buf));
         });
     iovs.assume_init()
 }
