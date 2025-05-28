@@ -21,8 +21,8 @@ async fn main() {
     );
 
     let host = "127.0.0.1";
-    let socka = UdxSocket::bind(format!("{host}:0")).await.unwrap();
-    let sockb = UdxSocket::bind(format!("{host}:0")).await.unwrap();
+    let socka = UdxSocket::bind(format!("{host}:0")).unwrap();
+    let sockb = UdxSocket::bind(format!("{host}:0")).unwrap();
     let addra = socka.local_addr().unwrap();
     let addrb = sockb.local_addr().unwrap();
     eprintln!("addra {}", addra);

@@ -15,8 +15,8 @@ async fn main() {
 }
 
 async fn run(total: usize, num_streams: usize) -> io::Result<()> {
-    let socka = UdxSocket::bind("127.0.0.1:0").await?;
-    let sockb = UdxSocket::bind("127.0.0.1:0").await?;
+    let socka = UdxSocket::bind("127.0.0.1:0")?;
+    let sockb = UdxSocket::bind("127.0.0.1:0")?;
     let addra = socka.local_addr()?;
     let addrb = sockb.local_addr()?;
 

@@ -80,8 +80,8 @@ async fn stream_close() -> io::Result<()> {
 }
 
 async fn create_pair() -> io::Result<((UdxSocket, UdxSocket), (UdxStream, UdxStream))> {
-    let socka = UdxSocket::bind("127.0.0.1:0").await?;
-    let sockb = UdxSocket::bind("127.0.0.1:0").await?;
+    let socka = UdxSocket::bind("127.0.0.1:0")?;
+    let sockb = UdxSocket::bind("127.0.0.1:0")?;
     let addra = socka.local_addr()?;
     let addrb = sockb.local_addr()?;
     let streama = socka.connect(addrb, 1, 2)?;

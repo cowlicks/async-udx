@@ -34,7 +34,7 @@ async fn main() -> io::Result<()> {
         .next()
         .expect("invalid connect addr");
     eprintln!("{} -> {}", listen_addr, connect_addr);
-    let sock = UdxSocket::bind(listen_addr).await?;
+    let sock = UdxSocket::bind(listen_addr)?;
     let stream = sock.connect(connect_addr, 1, 1)?;
     let max_len = UDX_DATA_MTU * 64;
     let read = spawn("read", read_loop(stream.clone(), max_len));
