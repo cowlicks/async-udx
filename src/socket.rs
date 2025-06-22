@@ -7,6 +7,8 @@ use std::fmt::Debug;
 use std::io;
 use std::io::IoSliceMut;
 use std::mem::MaybeUninit;
+use std::net::IpAddr;
+use std::net::Ipv4Addr;
 use std::net::SocketAddr;
 use std::net::ToSocketAddrs;
 use std::pin::Pin;
@@ -59,6 +61,18 @@ impl std::ops::Deref for UdxSocket {
 }
 
 impl UdxSocket {
+    pub fn bind_rnd() -> io::Result<Self> {
+        Self::bind_port(0)
+    }
+    pub fn bind_port(port: u16) -> io::Result<Self> {
+        let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), port);
+        Self::bind(addr)
+    }
+    // TODO FIXME this is not async but requires tokio running. Which will cause a runtime failure.
+    // rm this depndence
+    /// Create a socket on the given `addr`. Note `addr` is a *local* address normally it would
+    /// look like `127.0.0.1:8080` which creates a socket on port `8080`. To connect to any random
+    /// port pass `:0` as the port.
     pub fn bind<A: ToSocketAddrs>(addr: A) -> io::Result<Self> {
         let inner = UdxSocketInner::bind(addr)?;
         let socket = Self(Arc::new(Mutex::new(inner)));
