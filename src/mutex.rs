@@ -146,7 +146,7 @@ mod non_tracking {
         /// Acquires the lock for a certain purpose
         ///
         /// The purpose will be recorded in the list of last lock owners
-        pub fn lock(&self, _purpose: &'static str) -> MutexGuard<T> {
+        pub fn lock(&self, _purpose: &'static str) -> MutexGuard<'_, T> {
             MutexGuard {
                 guard: self.inner.lock(),
             }
