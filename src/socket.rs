@@ -89,6 +89,20 @@ impl UdxSocket {
         self.0.lock("UdxSocket::local_addr").socket.local_addr()
     }
 
+    pub fn create_stream(&self, local_id: u32) -> io::Result<HalfOpenStreamHandle> {
+        self.0.lock("UdxSocket::make_stream").streams.insert(
+            local_id,
+            MaybeOpenStream::HalfOpen(HalfOpenStream {
+                socket: self.clone(),
+                local_id,
+                rx_messages: vec![],
+            }),
+        );
+        Ok(HalfOpenStreamHandle {
+            socket: self.clone(),
+            local_id,
+        })
+    }
     pub fn connect(
         &self,
         dest: SocketAddr,
@@ -176,11 +190,75 @@ impl Future for SocketDriver {
     }
 }
 
+#[derive(Debug)]
+pub struct HalfOpenStreamHandle {
+    socket: UdxSocket,
+    local_id: u32,
+}
+
+impl HalfOpenStreamHandle {
+    pub fn connect(self, dest: SocketAddr, remote_id: u32) -> io::Result<UdxStream> {
+        let Some(MaybeOpenStream::HalfOpen(ds)) = self
+            .socket
+            .0
+            .lock("HalfOpenStreamHandle::connect get stream")
+            .streams
+            .remove(&self.local_id)
+        else {
+            todo!()
+        };
+        let (stream, handle) = ds.connect(dest, remote_id)?;
+        for event in ds.rx_messages {
+            if let Err(_packet) = handle.recv_tx.send(event) {
+                // stream dropped?
+                todo!()
+            }
+        }
+        self.socket
+            .0
+            .lock("HalfOpenStreamHandle:: put stream")
+            .streams
+            .insert(self.local_id, MaybeOpenStream::Open(handle));
+        Ok(stream)
+    }
+}
+
+#[derive(Debug)]
+struct HalfOpenStream {
+    socket: UdxSocket,
+    local_id: u32,
+    rx_messages: Vec<EventIncoming>,
+}
+
+impl HalfOpenStream {
+    fn connect(&self, dest: SocketAddr, remote_id: u32) -> io::Result<(UdxStream, StreamHandle)> {
+        let inner = self.socket.0.lock("DisconnectedStream::connect");
+        let (recv_tx, recv_rx) = mpsc::unbounded_channel();
+        let stream = UdxStream::connect(
+            recv_rx,
+            inner.send_tx.clone(),
+            inner.udp_state.clone(),
+            dest,
+            remote_id,
+            self.local_id,
+        );
+        // replay messages
+        let handle = StreamHandle { recv_tx };
+        Ok((stream, handle))
+    }
+}
+
+#[derive(Debug)]
+enum MaybeOpenStream {
+    HalfOpen(HalfOpenStream),
+    Open(StreamHandle),
+}
+
 pub struct UdxSocketInner {
     socket: UdpSocket,
     send_rx: Receiver<EventOutgoing>,
     send_tx: Sender<EventOutgoing>,
-    streams: HashMap<u32, StreamHandle>,
+    streams: HashMap<u32, MaybeOpenStream>,
     outgoing_transmits: VecDeque<Transmit>,
     outgoing_packet_sets: VecDeque<PacketSet>,
     recv_buf: Option<Box<[u8]>>,
@@ -284,7 +362,7 @@ impl UdxSocketInner {
         remote_id: u32,
     ) -> io::Result<UdxStream> {
         debug!(
-            "connect {} [{}] -> {} [{}])",
+            "UdxSocketInner::connect {} [{}] -> {} [{}])",
             self.local_addr().unwrap(),
             local_id,
             dest,
@@ -300,7 +378,7 @@ impl UdxSocketInner {
             local_id,
         );
         let handle = StreamHandle { recv_tx };
-        self.streams.insert(local_id, handle);
+        self.streams.insert(local_id, MaybeOpenStream::Open(handle));
         Ok(stream)
     }
 
@@ -436,8 +514,8 @@ impl UdxSocketInner {
             header.ack,
             len
         );
-        match self.streams.get(&stream_id) {
-            Some(handle) => {
+        match self.streams.get_mut(&stream_id) {
+            Some(stream) => {
                 let _ = data.split_to(UDX_HEADER_SIZE);
                 let incoming = IncomingPacket {
                     header,
@@ -446,12 +524,16 @@ impl UdxSocketInner {
                     from: meta.addr,
                 };
                 let event = EventIncoming::Packet(incoming);
-                match handle.recv_tx.send(event) {
-                    Ok(()) => {}
-                    Err(_packet) => {
-                        // stream was dropped.
-                        // remove stream?
-                        self.streams.remove(&stream_id);
+                match stream {
+                    MaybeOpenStream::Open(handle) => {
+                        if let Err(_p) = handle.recv_tx.send(event) {
+                            // stream was dropped.
+                            // remove stream?
+                            self.streams.remove(&stream_id);
+                        }
+                    }
+                    MaybeOpenStream::HalfOpen(ds) => {
+                        ds.rx_messages.push(event);
                     }
                 }
             }
