@@ -88,3 +88,68 @@ async fn create_pair() -> io::Result<((UdxSocket, UdxSocket), (UdxStream, UdxStr
     let streamb = sockb.connect(addra, 2, 1)?;
     Ok(((socka, sockb), (streama, streamb)))
 }
+
+#[tokio::test]
+async fn test_sockets() -> io::Result<()> {
+    let a = UdxSocket::bind("127.0.0.1:0")?;
+    let b = UdxSocket::bind("127.0.0.1:0")?;
+
+    a.send(b.local_addr()?, b"boo");
+    let (_sender, msg) = b.recv().await?;
+    assert_eq!(msg, b"boo");
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_stream_msg_replayed_on_connect() -> io::Result<()> {
+    let aid = 66;
+    let bid = 77;
+    let a = UdxSocket::bind("127.0.0.1:0")?;
+    let b = UdxSocket::bind("127.0.0.1:0")?;
+
+    let mut bstr = b.connect(a.local_addr()?, bid, aid)?;
+    bstr.write_all(b"AAA").await?;
+    // b"AAA" seen as socket msg bc other stream doesn't exist yet
+    let (_, _x) = a.recv().await?;
+
+    let mut astr = a.connect(b.local_addr()?, aid, bid)?;
+
+    bstr.write_all(b"BBB").await?;
+    let mut buf = vec![];
+    astr.read_buf(&mut buf).await?;
+    assert_eq!(&buf, b"AAABBB");
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_halfopen_streams() -> io::Result<()> {
+    let aid = 66;
+    let bid = 77;
+    let a = UdxSocket::bind("127.0.0.1:0")?;
+    let b = UdxSocket::bind("127.0.0.1:0")?;
+
+    let mut bstr = b.connect(a.local_addr()?, bid, aid)?;
+    bstr.write_all(b"AAA").await?;
+    let (_, _x) = a.recv().await?;
+    dbg!(_x);
+
+    let a_half_str = a.create_stream(aid)?;
+
+    bstr.write_all(b"BBB").await?;
+
+    // b_stream message not seen as socket message to a bc a_stream is half open
+    assert!(tokio::time::timeout(Duration::from_millis(100), a.recv())
+        .await
+        .is_err());
+
+    let mut astr = a_half_str.connect(b.local_addr()?, bid)?;
+    bstr.write_all(b"CCC").await?;
+    // b_stream message not seen as socket message to a bc a_stream is open
+    assert!(tokio::time::timeout(Duration::from_millis(100), a.recv())
+        .await
+        .is_err());
+    let mut buf = vec![];
+    astr.read_buf(&mut buf).await?;
+    assert_eq!(&buf, b"AAABBBCCC");
+    Ok(())
+}
