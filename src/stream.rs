@@ -548,9 +548,10 @@ impl UdxStreamInner {
         }
 
         if (self.inflight + UDX_MTU) <= self.cwnd
-            && let Some(waker) = self.write_waker.take() {
-                waker.wake();
-            }
+            && let Some(waker) = self.write_waker.take()
+        {
+            waker.wake();
+        }
 
         // reset rto, since things are moving forward.
         self.rto_timeout
@@ -669,9 +670,10 @@ impl UdxStreamInner {
 
             // packet is next in line, wake the read waker.
             if seq <= self.ack
-                && let Some(waker) = self.read_waker.take() {
-                    waker.wake();
-                }
+                && let Some(waker) = self.read_waker.take()
+            {
+                waker.wake();
+            }
             self.send_state_packet();
         }
 

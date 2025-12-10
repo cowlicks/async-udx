@@ -138,16 +138,20 @@ async fn test_halfopen_streams() -> io::Result<()> {
     bstr.write_all(b"BBB").await?;
 
     // b_stream message not seen as socket message to a bc a_stream is half open
-    assert!(tokio::time::timeout(Duration::from_millis(100), a.recv())
-        .await
-        .is_err());
+    assert!(
+        tokio::time::timeout(Duration::from_millis(100), a.recv())
+            .await
+            .is_err()
+    );
 
     let mut astr = a_half_str.connect(b.local_addr()?, bid)?;
     bstr.write_all(b"CCC").await?;
     // b_stream message not seen as socket message to a bc a_stream is open
-    assert!(tokio::time::timeout(Duration::from_millis(100), a.recv())
-        .await
-        .is_err());
+    assert!(
+        tokio::time::timeout(Duration::from_millis(100), a.recv())
+            .await
+            .is_err()
+    );
     let mut buf = vec![];
     astr.read_buf(&mut buf).await?;
     assert_eq!(&buf, b"AAABBBCCC");

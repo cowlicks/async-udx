@@ -1,8 +1,8 @@
 use atomic_instant::AtomicInstant;
 use bytes::{BufMut, Bytes};
 use std::fmt::{self, Debug};
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::{io, net::SocketAddr, sync::atomic::AtomicUsize};
 use udx_udp::Transmit;
 

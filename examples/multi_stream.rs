@@ -1,4 +1,4 @@
-use async_udx::{UdxSocket, UDX_DATA_MTU};
+use async_udx::{UDX_DATA_MTU, UdxSocket};
 use std::time::Instant;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 

@@ -6,7 +6,7 @@ use tokio::{
     net::TcpStream,
 };
 
-use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
+use criterion::{BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
 criterion_group!(server_benches, bench_throughput);
 criterion_main!(server_benches);
 fn rt() -> tokio::runtime::Runtime {
