@@ -33,9 +33,9 @@ async fn main() {
         let i = i as u32;
         let streama = socka.connect(addrb, 1000 + i, i).unwrap();
         let streamb = sockb.connect(addra, i, 1000 + i).unwrap();
-        let read_buf = vec![0u8; MSGSIZE as usize];
-        let write_buf = vec![i as u8; MSGSIZE as usize];
-        let (reader, writer) = if i % 2 == 0 {
+        let read_buf = vec![0u8; MSGSIZE];
+        let write_buf = vec![i as u8; MSGSIZE];
+        let (reader, writer) = if i.is_multiple_of(2) {
             (streama, streamb)
         } else {
             (streamb, streama)

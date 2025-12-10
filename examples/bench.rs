@@ -77,7 +77,7 @@ fn usize_from_env(name: &str, default: usize) -> usize {
     std::env::var(name)
         .map(|x| {
             x.parse::<usize>()
-                .expect(&format!("{} must be a number", name))
+                .unwrap_or_else(|_| panic!("{} must be a number", name))
         })
         .unwrap_or(default)
 }
