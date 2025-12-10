@@ -1,6 +1,6 @@
 [package]
 name = "udx"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 description = "Rust port of libudx, a protocol for reliable, multiplex, and congestion controlled streams over udp"
@@ -23,7 +23,7 @@ futures = "0.3.25"
 tracing = "0.1.37"
 bytes = "1.2.1"
 log = "0.4.17"
-udx-udp = { version = "0.1.0", path = "./udx-udp" }
+udx-udp = { version = "0.2.0", path = "./udx-udp" }
 atomic-instant = "0.1.1"
 parking_lot = "0.12.1"
 
