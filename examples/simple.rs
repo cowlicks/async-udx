@@ -1,6 +1,6 @@
-use async_udx::UdxSocket;
 use std::io;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+use udx::UdxSocket;
 
 #[tokio::main]
 async fn main() -> io::Result<()> {

@@ -1,5 +1,5 @@
-use async_udx::UdxSocket;
 use std::io;
+use udx::UdxSocket;
 
 #[tokio::test]
 async fn socket_dgrams() -> io::Result<()> {

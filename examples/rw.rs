@@ -4,7 +4,7 @@ use std::{future::Future, io};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::task::JoinHandle;
 
-use async_udx::{UDX_DATA_MTU, UdxSocket, UdxStream};
+use udx::{UDX_DATA_MTU, UdxSocket, UdxStream};
 
 pub fn spawn<T>(name: impl ToString, future: T) -> JoinHandle<()>
 where

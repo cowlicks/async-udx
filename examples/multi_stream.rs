@@ -1,6 +1,6 @@
-use async_udx::{UDX_DATA_MTU, UdxSocket};
 use std::time::Instant;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use udx::{UDX_DATA_MTU, UdxSocket};
 
 const MSGSIZE: usize = UDX_DATA_MTU * 64;
 

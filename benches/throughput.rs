@@ -15,8 +15,8 @@ fn rt() -> tokio::runtime::Runtime {
         .build()
         .unwrap()
 }
-use async_udx::{UdxSocket, UdxStream};
-// use async_udx::{UdxSocket, UdxStream};
+use udx::{UdxSocket, UdxStream};
+// use udx::{UdxSocket, UdxStream};
 fn bench_throughput(c: &mut Criterion) {
     tracing_subscriber::fmt().init();
     let rt = rt();

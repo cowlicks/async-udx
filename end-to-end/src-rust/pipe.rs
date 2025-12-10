@@ -1,6 +1,6 @@
-use async_udx::UdxSocket;
 use std::net::{Ipv4Addr, SocketAddr};
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt};
+use udx::UdxSocket;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {

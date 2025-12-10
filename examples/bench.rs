@@ -1,7 +1,7 @@
-use async_udx::UdxSocket;
 use pretty_bytes::converter::convert as fmtbytes;
 use std::{io, time::Instant};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use udx::UdxSocket;
 
 #[tokio::main]
 async fn main() {

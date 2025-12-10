@@ -1,6 +1,6 @@
-use async_udx::{UdxSocket, UdxStream};
 use std::{io, time::Duration};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use udx::{UdxSocket, UdxStream};
 
 #[tokio::test]
 async fn stream_read_write() -> io::Result<()> {
