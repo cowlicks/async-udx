@@ -5,8 +5,8 @@ use std::fmt::{self, Debug};
 use std::io;
 use std::net::SocketAddr;
 use std::pin::Pin;
-use std::sync::atomic::Ordering;
 use std::sync::Arc;
+use std::sync::atomic::Ordering;
 use std::task::{Context, Poll, Waker};
 use std::time::Duration;
 use tokio::io::{AsyncRead, AsyncWrite};
@@ -15,16 +15,16 @@ use tokio::sync::oneshot;
 use tokio::time::Sleep;
 use tracing::{debug, trace, warn};
 
+use crate::EventOutgoing;
 use crate::constants::{
     UDX_CLOCK_GRANULARITY_MS, UDX_HEADER_DATA, UDX_HEADER_END, UDX_HEADER_SACK, UDX_MAX_DATA_SIZE,
     UDX_MAX_TRANSMITS, UDX_MTU,
 };
 use crate::error::UdxError;
 use crate::mutex::{Mutex, MutexGuard};
-use crate::packet::{read_u32_le, Header, IncomingPacket, Packet, PacketRef, PacketSet};
+use crate::packet::{Header, IncomingPacket, Packet, PacketRef, PacketSet, read_u32_le};
 use crate::socket::EventIncoming;
 use crate::udp::UdpState;
-use crate::EventOutgoing;
 
 const SSTHRESH: usize = 0xffff;
 const MAX_SEGMENTS: usize = 10;
@@ -491,7 +491,7 @@ impl UdxStreamInner {
                     return Err(io::Error::new(
                         io::ErrorKind::BrokenPipe,
                         "Socket driver future was dropped",
-                    ))
+                    ));
                 }
                 Poll::Ready(Some(event)) => match event {
                     EventIncoming::Packet(packet) => {
@@ -547,11 +547,10 @@ impl UdxStreamInner {
             }
         }
 
-        if (self.inflight + UDX_MTU) <= self.cwnd {
-            if let Some(waker) = self.write_waker.take() {
+        if (self.inflight + UDX_MTU) <= self.cwnd
+            && let Some(waker) = self.write_waker.take() {
                 waker.wake();
             }
-        }
 
         // reset rto, since things are moving forward.
         self.rto_timeout
@@ -669,11 +668,10 @@ impl UdxStreamInner {
             }
 
             // packet is next in line, wake the read waker.
-            if seq <= self.ack {
-                if let Some(waker) = self.read_waker.take() {
+            if seq <= self.ack
+                && let Some(waker) = self.read_waker.take() {
                     waker.wake();
                 }
-            }
             self.send_state_packet();
         }
 
@@ -813,7 +811,7 @@ impl AsyncRead for UdxStreamInner {
         //     self.incoming.len()
         // );
         let did_read = self.read_next(buf)?;
-        let res = if !did_read {
+        if !did_read {
             if let Some(error) = &self.error {
                 return Poll::Ready(Err(error.clone().into()));
             }
@@ -821,15 +819,7 @@ impl AsyncRead for UdxStreamInner {
             Poll::Pending
         } else {
             Poll::Ready(Ok(()))
-        };
-        // debug!(
-        //     "poll read res {:?} did_read {} filled {} remaining {}",
-        //     res,
-        //     did_read,
-        //     buf.filled().len(),
-        //     buf.remaining()
-        // );
-        res
+        }
     }
 }
 
