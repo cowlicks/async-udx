@@ -135,6 +135,9 @@ impl Future for RecvFuture {
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let mut socket = self.0.lock("UdxSocket::recv");
         if let Some(dgram) = socket.recv_dgrams.pop_front() {
+            if !socket.recv_dgrams.is_empty() {
+                cx.waker().wake_by_ref();
+            }
             Poll::Ready(Ok((dgram.dest, dgram.buf)))
         } else {
             socket.recv_waker = Some(cx.waker().clone());
