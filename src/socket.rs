@@ -26,7 +26,7 @@ use crate::constants::UDX_MTU;
 use crate::mutex::Mutex;
 use crate::packet::{Dgram, Header, IncomingPacket, PacketSet};
 use crate::stream::UdxStream;
-use crate::udp::{RecvMeta, Transmit, UdpSocket, UdpState, BATCH_SIZE};
+use crate::udp::{BATCH_SIZE, RecvMeta, Transmit, UdpSocket, UdpState};
 
 const MAX_LOOP: usize = 60;
 
@@ -561,10 +561,12 @@ unsafe fn iovectors_from_buf<const N: usize>(buf: &mut [u8]) -> [IoSliceMut<'_>;
     buf.chunks_mut(buf.len() / N)
         .enumerate()
         .for_each(|(i, buf)| {
-            iovs.as_mut_ptr()
-                .cast::<IoSliceMut>()
-                .add(i)
-                .write(IoSliceMut::new(buf));
+            unsafe {
+                iovs.as_mut_ptr()
+                    .cast::<IoSliceMut>()
+                    .add(i)
+                    .write(IoSliceMut::new(buf))
+            };
         });
-    iovs.assume_init()
+    unsafe { iovs.assume_init() }
 }
