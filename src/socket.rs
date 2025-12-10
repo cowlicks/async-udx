@@ -452,7 +452,7 @@ impl UdxSocketInner {
         }
     }
 
-    fn poll_recv<'a>(&'a mut self, cx: &mut Context<'_>) -> io::Result<bool> {
+    fn poll_recv(&mut self, cx: &mut Context<'_>) -> io::Result<bool> {
         let mut metas = [RecvMeta::default(); BATCH_SIZE];
         let mut recv_buf = self.recv_buf.take().unwrap();
         let mut iovs = unsafe { iovectors_from_buf::<BATCH_SIZE>(&mut recv_buf) };

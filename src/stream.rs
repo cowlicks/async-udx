@@ -161,7 +161,7 @@ impl UdxStream {
         };
         let stream = UdxStream(Arc::new(Mutex::new(stream)));
         let driver = StreamDriver(stream.clone());
-        tokio::task::spawn(async move { driver.await });
+        tokio::task::spawn(driver);
         stream
     }
 
@@ -575,11 +575,7 @@ impl UdxStreamInner {
                 self.rttvar = rtt / 2;
                 self.rto = self.srtt + UDX_CLOCK_GRANULARITY_MS.max(4 * self.rttvar);
             } else {
-                let delta = if rtt < self.srtt {
-                    self.srtt - rtt
-                } else {
-                    rtt - self.srtt
-                };
+                let delta = self.srtt.abs_diff(rtt);
                 // RTTVAR <- (1 - beta) * RTTVAR + beta * |SRTT - R'| where beta is 1/4
                 self.rttvar = (3 * self.rttvar + delta) / 4;
                 // SRTT <- (1 - alpha) * SRTT + alpha * R' where alpha is 1/8
