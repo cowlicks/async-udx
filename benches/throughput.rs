@@ -6,7 +6,7 @@ use tokio::{
     net::TcpStream,
 };
 
-use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
+use criterion::{BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
 criterion_group!(server_benches, bench_throughput);
 criterion_main!(server_benches);
 fn rt() -> tokio::runtime::Runtime {
@@ -41,8 +41,8 @@ fn bench_throughput(c: &mut Criterion) {
                     let num_streams = n_streams;
                     let limit = *len / num_streams;
                     b.to_async(&rt).iter_custom(|iters| async move {
-                        let socka = UdxSocket::bind("127.0.0.1:0").await.unwrap();
-                        let sockb = UdxSocket::bind("127.0.0.1:0").await.unwrap();
+                        let socka = UdxSocket::bind("127.0.0.1:0").unwrap();
+                        let sockb = UdxSocket::bind("127.0.0.1:0").unwrap();
                         let addra = socka.local_addr().unwrap();
                         let addrb = sockb.local_addr().unwrap();
                         let mut readers = vec![];
@@ -191,8 +191,8 @@ async fn setup_pipe_tcp() -> io::Result<(TcpStream, TcpStream)> {
 }
 
 async fn setup_pipe_udx() -> io::Result<(UdxStream, UdxStream)> {
-    let socka = UdxSocket::bind("127.0.0.1:0").await?;
-    let sockb = UdxSocket::bind("127.0.0.1:0").await?;
+    let socka = UdxSocket::bind("127.0.0.1:0")?;
+    let sockb = UdxSocket::bind("127.0.0.1:0")?;
     let addra = socka.local_addr()?;
     let addrb = sockb.local_addr()?;
     let streama = socka.connect(addrb, 1, 2)?;

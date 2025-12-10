@@ -15,8 +15,8 @@ async fn main() {
 }
 
 async fn run(total: usize, num_streams: usize) -> io::Result<()> {
-    let socka = UdxSocket::bind("127.0.0.1:0").await?;
-    let sockb = UdxSocket::bind("127.0.0.1:0").await?;
+    let socka = UdxSocket::bind("127.0.0.1:0")?;
+    let sockb = UdxSocket::bind("127.0.0.1:0")?;
     let addra = socka.local_addr()?;
     let addrb = sockb.local_addr()?;
 
@@ -77,7 +77,7 @@ fn usize_from_env(name: &str, default: usize) -> usize {
     std::env::var(name)
         .map(|x| {
             x.parse::<usize>()
-                .expect(&format!("{} must be a number", name))
+                .unwrap_or_else(|_| panic!("{} must be a number", name))
         })
         .unwrap_or(default)
 }

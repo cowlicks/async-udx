@@ -3,3 +3,4 @@ SANDBOX
 vendor
 perf.data*
 flamegraph*.svg
+Cargo.lock

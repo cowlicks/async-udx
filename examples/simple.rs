@@ -7,10 +7,10 @@ async fn main() -> io::Result<()> {
     tracing_subscriber::fmt::init();
 
     // Bind two sockets
-    let socka = UdxSocket::bind("127.0.0.1:20004").await?;
+    let socka = UdxSocket::bind("127.0.0.1:20004")?;
     let addra = socka.local_addr()?;
     eprintln!("Socket A bound to {addra}");
-    let sockb = UdxSocket::bind("127.0.0.1:20005").await?;
+    let sockb = UdxSocket::bind("127.0.0.1:20005")?;
     let addrb = sockb.local_addr()?;
     eprintln!("Socket B bound to {addrb}");
 

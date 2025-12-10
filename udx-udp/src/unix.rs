@@ -1,8 +1,7 @@
 use std::{
-    io,
-    io::IoSliceMut,
+    io::{self, IoSliceMut},
     mem::{self, MaybeUninit},
-    net::{IpAddr, SocketAddr},
+    net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr},
     os::unix::io::AsRawFd,
     ptr,
     sync::atomic::AtomicUsize,
@@ -530,7 +529,7 @@ fn decode_recv(
                 // Temporary hack around broken macos ABI. Remove once upstream fixes it.
                 // https://bugreport.apple.com/web/?problemID=48761855
                 if cfg!(target_os = "macos")
-                    && cmsg.cmsg_len as usize == libc::CMSG_LEN(mem::size_of::<u8>() as _) as usize
+                    && cmsg.cmsg_len == libc::CMSG_LEN(mem::size_of::<u8>() as _) as usize
                 {
                     ecn_bits = cmsg::decode::<u8>(cmsg);
                 } else {
@@ -550,8 +549,22 @@ fn decode_recv(
     }
 
     let addr = match libc::c_int::from(name.ss_family) {
-        libc::AF_INET => unsafe { SocketAddr::V4(ptr::read(&name as *const _ as _)) },
-        libc::AF_INET6 => unsafe { SocketAddr::V6(ptr::read(&name as *const _ as _)) },
+        libc::AF_INET => unsafe {
+            // Cast to sockaddr_in first to get correct memory layout
+            let addr: &libc::sockaddr_in = &*(&name as *const _ as *const libc::sockaddr_in);
+            SocketAddr::new(
+                IpAddr::V4(Ipv4Addr::from(u32::from_be(addr.sin_addr.s_addr))),
+                u16::from_be(addr.sin_port),
+            )
+        },
+        libc::AF_INET6 => unsafe {
+            // Cast to sockaddr_in6 first to get correct memory layout
+            let addr: &libc::sockaddr_in6 = &*(&name as *const _ as *const libc::sockaddr_in6);
+            SocketAddr::new(
+                IpAddr::V6(Ipv6Addr::from(addr.sin6_addr.s6_addr)),
+                u16::from_be(addr.sin6_port),
+            )
+        },
         _ => unreachable!(),
     };
 

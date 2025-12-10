@@ -7,6 +7,8 @@ use std::fmt::Debug;
 use std::io;
 use std::io::IoSliceMut;
 use std::mem::MaybeUninit;
+use std::net::IpAddr;
+use std::net::Ipv4Addr;
 use std::net::SocketAddr;
 use std::net::ToSocketAddrs;
 use std::pin::Pin;
@@ -24,7 +26,7 @@ use crate::constants::UDX_MTU;
 use crate::mutex::Mutex;
 use crate::packet::{Dgram, Header, IncomingPacket, PacketSet};
 use crate::stream::UdxStream;
-use crate::udp::{RecvMeta, Transmit, UdpSocket, UdpState, BATCH_SIZE};
+use crate::udp::{BATCH_SIZE, RecvMeta, Transmit, UdpSocket, UdpState};
 
 const MAX_LOOP: usize = 60;
 
@@ -59,8 +61,20 @@ impl std::ops::Deref for UdxSocket {
 }
 
 impl UdxSocket {
-    pub async fn bind<A: ToSocketAddrs>(addr: A) -> io::Result<Self> {
-        let inner = UdxSocketInner::bind(addr).await?;
+    pub fn bind_rnd() -> io::Result<Self> {
+        Self::bind_port(0)
+    }
+    pub fn bind_port(port: u16) -> io::Result<Self> {
+        let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), port);
+        Self::bind(addr)
+    }
+    // TODO FIXME this is not async but requires tokio running. Which will cause a runtime failure.
+    // rm this depndence
+    /// Create a socket on the given `addr`. Note `addr` is a *local* address normally it would
+    /// look like `127.0.0.1:8080` which creates a socket on port `8080`. To connect to any random
+    /// port pass `:0` as the port.
+    pub fn bind<A: ToSocketAddrs>(addr: A) -> io::Result<Self> {
+        let inner = UdxSocketInner::bind(addr)?;
         let socket = Self(Arc::new(Mutex::new(inner)));
         let driver = SocketDriver(socket.clone());
         tokio::spawn(async {
@@ -75,6 +89,20 @@ impl UdxSocket {
         self.0.lock("UdxSocket::local_addr").socket.local_addr()
     }
 
+    pub fn create_stream(&self, local_id: u32) -> io::Result<HalfOpenStreamHandle> {
+        self.0.lock("UdxSocket::make_stream").streams.insert(
+            local_id,
+            MaybeOpenStream::HalfOpen(HalfOpenStream {
+                socket: self.clone(),
+                local_id,
+                rx_messages: vec![],
+            }),
+        );
+        Ok(HalfOpenStreamHandle {
+            socket: self.clone(),
+            local_id,
+        })
+    }
     pub fn connect(
         &self,
         dest: SocketAddr,
@@ -107,6 +135,9 @@ impl Future for RecvFuture {
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let mut socket = self.0.lock("UdxSocket::recv");
         if let Some(dgram) = socket.recv_dgrams.pop_front() {
+            if !socket.recv_dgrams.is_empty() {
+                cx.waker().wake_by_ref();
+            }
             Poll::Ready(Ok((dgram.dest, dgram.buf)))
         } else {
             socket.recv_waker = Some(cx.waker().clone());
@@ -162,11 +193,75 @@ impl Future for SocketDriver {
     }
 }
 
+#[derive(Debug)]
+pub struct HalfOpenStreamHandle {
+    socket: UdxSocket,
+    local_id: u32,
+}
+
+impl HalfOpenStreamHandle {
+    pub fn connect(self, dest: SocketAddr, remote_id: u32) -> io::Result<UdxStream> {
+        let Some(MaybeOpenStream::HalfOpen(ds)) = self
+            .socket
+            .0
+            .lock("HalfOpenStreamHandle::connect get stream")
+            .streams
+            .remove(&self.local_id)
+        else {
+            todo!()
+        };
+        let (stream, handle) = ds.connect(dest, remote_id)?;
+        for event in ds.rx_messages {
+            if let Err(_packet) = handle.recv_tx.send(event) {
+                // stream dropped?
+                todo!()
+            }
+        }
+        self.socket
+            .0
+            .lock("HalfOpenStreamHandle:: put stream")
+            .streams
+            .insert(self.local_id, MaybeOpenStream::Open(handle));
+        Ok(stream)
+    }
+}
+
+#[derive(Debug)]
+struct HalfOpenStream {
+    socket: UdxSocket,
+    local_id: u32,
+    rx_messages: Vec<EventIncoming>,
+}
+
+impl HalfOpenStream {
+    fn connect(&self, dest: SocketAddr, remote_id: u32) -> io::Result<(UdxStream, StreamHandle)> {
+        let inner = self.socket.0.lock("DisconnectedStream::connect");
+        let (recv_tx, recv_rx) = mpsc::unbounded_channel();
+        let stream = UdxStream::connect(
+            recv_rx,
+            inner.send_tx.clone(),
+            inner.udp_state.clone(),
+            dest,
+            remote_id,
+            self.local_id,
+        );
+        // replay messages
+        let handle = StreamHandle { recv_tx };
+        Ok((stream, handle))
+    }
+}
+
+#[derive(Debug)]
+enum MaybeOpenStream {
+    HalfOpen(HalfOpenStream),
+    Open(StreamHandle),
+}
+
 pub struct UdxSocketInner {
     socket: UdpSocket,
     send_rx: Receiver<EventOutgoing>,
     send_tx: Sender<EventOutgoing>,
-    streams: HashMap<u32, StreamHandle>,
+    streams: HashMap<u32, MaybeOpenStream>,
     outgoing_transmits: VecDeque<Transmit>,
     outgoing_packet_sets: VecDeque<PacketSet>,
     recv_buf: Option<Box<[u8]>>,
@@ -236,7 +331,7 @@ impl SocketStats {
 }
 
 impl UdxSocketInner {
-    pub async fn bind<A: ToSocketAddrs>(addr: A) -> io::Result<Self> {
+    pub fn bind<A: ToSocketAddrs>(addr: A) -> io::Result<Self> {
         let socket = std::net::UdpSocket::bind(addr)?;
         let socket = UdpSocket::from_std(socket)?;
         let (send_tx, send_rx) = mpsc::unbounded_channel();
@@ -270,7 +365,7 @@ impl UdxSocketInner {
         remote_id: u32,
     ) -> io::Result<UdxStream> {
         debug!(
-            "connect {} [{}] -> {} [{}])",
+            "UdxSocketInner::connect {} [{}] -> {} [{}])",
             self.local_addr().unwrap(),
             local_id,
             dest,
@@ -286,7 +381,7 @@ impl UdxSocketInner {
             local_id,
         );
         let handle = StreamHandle { recv_tx };
-        self.streams.insert(local_id, handle);
+        self.streams.insert(local_id, MaybeOpenStream::Open(handle));
         Ok(stream)
     }
 
@@ -357,7 +452,7 @@ impl UdxSocketInner {
         }
     }
 
-    fn poll_recv<'a>(&'a mut self, cx: &mut Context<'_>) -> io::Result<bool> {
+    fn poll_recv(&mut self, cx: &mut Context<'_>) -> io::Result<bool> {
         let mut metas = [RecvMeta::default(); BATCH_SIZE];
         let mut recv_buf = self.recv_buf.take().unwrap();
         let mut iovs = unsafe { iovectors_from_buf::<BATCH_SIZE>(&mut recv_buf) };
@@ -422,8 +517,8 @@ impl UdxSocketInner {
             header.ack,
             len
         );
-        match self.streams.get(&stream_id) {
-            Some(handle) => {
+        match self.streams.get_mut(&stream_id) {
+            Some(stream) => {
                 let _ = data.split_to(UDX_HEADER_SIZE);
                 let incoming = IncomingPacket {
                     header,
@@ -432,12 +527,16 @@ impl UdxSocketInner {
                     from: meta.addr,
                 };
                 let event = EventIncoming::Packet(incoming);
-                match handle.recv_tx.send(event) {
-                    Ok(()) => {}
-                    Err(_packet) => {
-                        // stream was dropped.
-                        // remove stream?
-                        self.streams.remove(&stream_id);
+                match stream {
+                    MaybeOpenStream::Open(handle) => {
+                        if let Err(_p) = handle.recv_tx.send(event) {
+                            // stream was dropped.
+                            // remove stream?
+                            self.streams.remove(&stream_id);
+                        }
+                    }
+                    MaybeOpenStream::HalfOpen(ds) => {
+                        ds.rx_messages.push(event);
                     }
                 }
             }
@@ -457,15 +556,17 @@ pub enum SocketEvent {
 // Create an array of IO vectors from a buffer.
 // Safety: buf has to be longer than N. You may only read from slices that have been written to.
 // Taken from: quinn/src/endpoint.rs
-unsafe fn iovectors_from_buf<'a, const N: usize>(buf: &'a mut [u8]) -> [IoSliceMut; N] {
-    let mut iovs = MaybeUninit::<[IoSliceMut<'a>; N]>::uninit();
+unsafe fn iovectors_from_buf<const N: usize>(buf: &mut [u8]) -> [IoSliceMut<'_>; N] {
+    let mut iovs = MaybeUninit::<[IoSliceMut; N]>::uninit();
     buf.chunks_mut(buf.len() / N)
         .enumerate()
         .for_each(|(i, buf)| {
-            iovs.as_mut_ptr()
-                .cast::<IoSliceMut>()
-                .add(i)
-                .write(IoSliceMut::<'a>::new(buf));
+            unsafe {
+                iovs.as_mut_ptr()
+                    .cast::<IoSliceMut>()
+                    .add(i)
+                    .write(IoSliceMut::new(buf))
+            };
         });
-    iovs.assume_init()
+    unsafe { iovs.assume_init() }
 }

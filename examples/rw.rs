@@ -4,7 +4,7 @@ use std::{future::Future, io};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::task::JoinHandle;
 
-use async_udx::{UdxSocket, UdxStream, UDX_DATA_MTU};
+use async_udx::{UDX_DATA_MTU, UdxSocket, UdxStream};
 
 pub fn spawn<T>(name: impl ToString, future: T) -> JoinHandle<()>
 where
@@ -34,7 +34,7 @@ async fn main() -> io::Result<()> {
         .next()
         .expect("invalid connect addr");
     eprintln!("{} -> {}", listen_addr, connect_addr);
-    let sock = UdxSocket::bind(listen_addr).await?;
+    let sock = UdxSocket::bind(listen_addr)?;
     let stream = sock.connect(connect_addr, 1, 1)?;
     let max_len = UDX_DATA_MTU * 64;
     let read = spawn("read", read_loop(stream.clone(), max_len));
