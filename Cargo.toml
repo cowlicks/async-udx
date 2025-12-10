@@ -1,12 +1,12 @@
 [package]
-name = "async-udx"
+name = "udx"
 version = "0.1.0"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 description = "Rust port of libudx, a protocol for reliable, multiplex, and congestion controlled streams over udp"
 authors = ["Franz Heinzmann (Frando) <frando@unbiskant.org>"]
-documentation = "https://docs.rs/async-udx"
-repository = "https://github.com/Frando/async-udx"
+documentation = "https://docs.rs/udx"
+repository = "https://github.com/datrs/async-udx"
 readme = "README.md"
 keywords = ["udx", "p2p", "udp", "protocol"]
 categories = [

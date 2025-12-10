@@ -9,7 +9,7 @@ path = "src-rust/pipe.rs"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-async-udx = { path = ".." }
+udx = { path = ".." }
 tokio = { version = "1.17.0", features = ["net", "macros", "rt-multi-thread", "time", "io-std", "io-util", "sync"] }
 futures = "0.3.21"
 tracing = "0.1.34"
